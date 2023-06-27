@@ -1,0 +1,10 @@
+tensorflow<2.11
+numpy
+pandas
+matplotlib
+plotly
+scikit-learn
+jupyter
+pydot
+graphviz
+tqdm
