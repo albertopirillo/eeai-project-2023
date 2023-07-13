@@ -1,6 +1,5 @@
-tensorflow<2.11
+tensorflow
 numpy
-pandas
 matplotlib
 plotly
 scikit-learn
