@@ -22,9 +22,9 @@ class Dataset:
         self.batch_size: int = batch_size
         self.split_threshold: float = split_threshold
         self.class_mapping: dict[int, str] =  {i:label for i, label in enumerate(LABELS)}
-        self.train: tf.python.data.Dataset = keras.utils.image_dataset_from_directory(ASL_PATH, batch_size=batch_size, validation_split=split_threshold, subset='train', seed=SEED, class_names=LABELS)
-        self.validation: tf.python.data.Dataset = keras.utils.image_dataset_from_directory(ASL_PATH, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=SEED, class_names=LABELS)
-        self.test: tf.python.data.Dataset = keras.utils.image_dataset_from_directory(ASL_REAL_PATH, batch_size=batch_size)
+        self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_PATH, batch_size=batch_size, validation_split=split_threshold, subset='training', seed=SEED, class_names=LABELS)
+        self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_PATH, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=SEED, class_names=LABELS)
+        self.test: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_REAL_PATH, batch_size=batch_size)
 
 
     def print_num_batches(self) -> None:
