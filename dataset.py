@@ -21,6 +21,7 @@ class Dataset:
     def __init__(self, split_threshold: float, batch_size: int) -> None:
         self.batch_size: int = batch_size
         self.split_threshold: float = split_threshold
+        self.class_labels: tuple[str, ...]  = LABELS
         self.class_mapping: dict[int, str] =  {i:label for i, label in enumerate(LABELS)}
         self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_PATH, batch_size=batch_size, validation_split=split_threshold, subset='training', seed=SEED, class_names=LABELS)
         self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_PATH, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=SEED, class_names=LABELS)
