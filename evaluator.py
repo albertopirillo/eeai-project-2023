@@ -3,7 +3,8 @@ import tensorflow as tf
 from tensorflow import keras
 from sklearn import metrics
 import plotly.express as px
-from tqdm.notebook import tqdm
+from tqdm import tqdm
+
 
 class Evaluator:
     def __init__(self, model: keras.Model, dataset: tf.data.Dataset, class_labels: tuple[str, ...]) -> None:
@@ -11,7 +12,6 @@ class Evaluator:
         self.dataset = dataset
         self.class_labels = class_labels
         self.true_labels, self.pred_labels = self.compute_labels()
-
 
     def compute_labels(self) -> tuple[np.ndarray, np.ndarray]:
         true_labels = np.array([])
@@ -31,27 +31,24 @@ class Evaluator:
 
         return true_labels, pred_labels
 
-
     def evaluate(self):
         loss, accuracy = self.model.evaluate(self.dataset)
         print(f'Loss function: {loss:.3f}')
         print(f'Accuracy: {accuracy:.2%}')
 
-
     def classification_report(self) -> None:
         print(metrics.classification_report(self.true_labels, self.pred_labels, target_names=self.class_labels))
 
-
     def confusion_matrix(self, size: int) -> None:
         cm = metrics.confusion_matrix(self.true_labels, self.pred_labels)
-        fig = px.imshow(cm, x=self.class_labels, y=self.class_labels, text_auto=True, width=size, height=size,color_continuous_scale='blues')
+        fig = px.imshow(cm, x=self.class_labels, y=self.class_labels, text_auto=True, width=size, height=size,
+                        color_continuous_scale='blues')
         fig.update_layout(
             title_text='Multiclass confusion matrix',
             xaxis_title_text='Actual class',
             yaxis_title_text='Predicted class',
         )
         fig.show()
-
 
     def error_per_class(self) -> None:
         cm = metrics.confusion_matrix(self.true_labels, self.pred_labels)
@@ -65,10 +62,9 @@ class Evaluator:
         )
         fig.show()
 
-
     def relative_errors(self) -> None:
         cm = metrics.confusion_matrix(self.true_labels, self.pred_labels)
-        correct_percentage =  cm.diagonal() / cm.sum(axis=1)
+        correct_percentage = cm.diagonal() / cm.sum(axis=1)
         rel_errors = 1 - correct_percentage
         fig = px.bar(x=self.class_labels, y=rel_errors, orientation='v')
         fig.update_layout(

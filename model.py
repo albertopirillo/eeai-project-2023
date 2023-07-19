@@ -130,6 +130,8 @@ class Model:
         plt.plot(val_acc, label='Validation Accuracy')
         plt.ylim([min(plt.ylim()), 1])
 
+        plt.show()
+
 
     def save(self, save_path: Path) -> None:
         self.model.save(save_path / 'asl_mobilenet_tuned.keras', save_format='keras')
