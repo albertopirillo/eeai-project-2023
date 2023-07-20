@@ -31,8 +31,6 @@ class Model:
         self.model = keras.Sequential([
             # Input layer
             keras.Input(shape=IMAGE_SHAPE, name='first_layer'),
-            # Resizing layer
-            # keras.layers.Resizing(96, 96, interpolation='nearest', name='resize'),
             # Pre-processing for MobileNetV1
             keras.layers.Lambda(tf.keras.applications.mobilenet.preprocess_input, name='preprocessing'),
             # MobileNetV1
