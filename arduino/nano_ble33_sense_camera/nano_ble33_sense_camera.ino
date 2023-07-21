@@ -15,9 +15,8 @@
  */
 
 /* Includes ---------------------------------------------------------------- */
-#include <Final_Project_2_inferencing.h>
+#include <Final_Project_inferencing.h>
 #include <Arduino_OV767X.h> //Click here to get the library: https://www.arduino.cc/reference/en/libraries/arduino_ov767x/
-#include <cfloat>
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -172,6 +171,7 @@ void loop()
         uint32_t resize_row_sz;
         bool do_resize = false;
         int res = calculate_resize_dimensions(EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT, &resize_col_sz, &resize_row_sz, &do_resize);
+        ei_printf("RES: %d\n", res); //debug
         if (res) {
             ei_printf("ERR: Failed to calculate resize dimensions (%d)\r\n", res);
             break;
@@ -191,6 +191,7 @@ void loop()
             if (snapshot_mem) ei_free(snapshot_mem);
             break;
         }
+        ei_printf("IMAGE: %d\n", *snapshot_buf);
 
         ei::signal_t signal;
         signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
@@ -350,13 +351,13 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
         crop_col_sz = img_width;
         crop_row_sz = img_height;
 
-        //ei_printf("crop cols: %d, rows: %d\r\n", crop_col_sz,crop_row_sz);
+        //ei_printf("crop cols: %d, rows: %d\r\n", crop_col_sz,crop_row_sz); //debug
         cropImage(resize_col_sz, resize_row_sz,
                 out_buf,
                 crop_col_start, crop_row_start,
                 crop_col_sz, crop_row_sz,
                 out_buf,
-                16);
+                8); //debug, qui era 16 e non 8, non so perchè
     }
 
     // The following variables should always be assigned
@@ -538,13 +539,22 @@ void cropImage(int srcWidth, int srcHeight, uint8_t *srcImage, int startX, int s
 {
     uint32_t *s32, *d32;
     int x, y;
-
+    /*ei_printf("IMAGE:\n");
+    int counter = 0;
+    for(int i=0; i<(96*96); i++){
+      if((i%96)==0)
+        ei_printf("\n");
+      ei_printf("%d ", *(srcImage+i));
+      if(*(srcImage+i)>255) counter++;
+    } //debug
+    if(counter>0) ei_printf("\nvalues are on 16 bits\n");*/ //debug
+    //ei_printf("\n\nbit x pixel: %d\n", iBpp); //debug
     if (startX < 0 || startX >= srcWidth || startY < 0 || startY >= srcHeight || (startX + dstWidth) > srcWidth || (startY + dstHeight) > srcHeight)
        return; // invalid parameters
     if (iBpp != 8 && iBpp != 16)
        return;
-
     if (iBpp == 8) {
+      ei_printf("\nI am using 8 bits x pixel\n"); //debug
       uint8_t *s, *d;
       for (y=0; y<dstHeight; y++) {
         s = &srcImage[srcWidth * (y + startY) + startX];
@@ -571,7 +581,8 @@ void cropImage(int srcWidth, int srcHeight, uint8_t *srcImage, int startX, int s
       } // for y
     } // 8-bpp
     else
-    {
+    { 
+      ei_printf("\nI am using 16 bits x pixel\n"); //debug
       uint16_t *s, *d;
       for (y=0; y<dstHeight; y++) {
         s = (uint16_t *)&srcImage[2 * srcWidth * (y + startY) + startX * 2];
