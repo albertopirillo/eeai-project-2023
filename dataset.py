@@ -29,30 +29,67 @@ class Dataset:
 
 
     def print_num_batches(self) -> None:
-        print('Number of train batches:', int(tf.data.experimental.cardinality(self.train)))
-        print('Number of validation batches:', int(tf.data.experimental.cardinality(self.validation)))
-        print('Number of test batches:', int(tf.data.experimental.cardinality(self.test)))
+        print('Number of train batches:', int(self.train.cardinality()))
+        print('Number of validation batches:', int(self.validation.cardinality()))
+        print('Number of test batches:', int(self.test.cardinality()))
 
 
     def select_classes(self, classes: list[str, ...]) -> None:
-        # Update class labels and mappings
-        self.class_labels.append('no gesture')
-        self.class_mapping = {i:label for i, label in enumerate(self.class_labels)}
-        inverted_dict = {label: i for i, label in enumerate(self.class_labels)}
-
         # "nothing" and "no gesture" classes must always be present
         if 'nothing' not in classes:
             classes.append('nothing')
         classes.append('no gesture')
 
-        # Convert the class labels to indices
-        classes_indices = [inverted_dict[label] for label in classes]
+        # Update class labels and mappings
+        inverted_mapping = {label: i for i, label in enumerate(self.class_labels + ['no gesture'])}
+        self.class_labels = classes
+        self.class_mapping = {i:label for i, label in enumerate(self.class_labels)}
 
-        # Filter out the classes
+        # Convert the class labels to indices
+        classes_indices = [inverted_mapping[label] for label in classes]
+
+        # Helper lambda unctions
         class_filter = lambda _, y: tf.reduce_any(tf.equal(y, classes_indices))
-        self.train = self.train.unbatch().filter(class_filter).batch(self.batch_size)
-        self.validation = self.validation.unbatch().filter(class_filter).batch(self.batch_size)
-        self.test = self.test.unbatch().filter(class_filter).batch(self.batch_size)
+        excluded_classes_filter = lambda _, y: tf.reduce_any(tf.not_equal(y, classes_indices))
+        rename_f = lambda x, y: (x, inverted_mapping['no gesture'])
+
+        # Function to perform all operations
+        def process(dataset: tf.data.Dataset) -> tf.data.Dataset:
+            cardinality = dataset.cardinality() * self.batch_size
+            one_class_cardinality = dataset.cardinality() * self.batch_size // len(LABELS)
+            dataset = dataset.unbatch()
+            # Generate the 'no gesture' class by sampling randomly the excluded classes
+            dataset_excluded = dataset.filter(excluded_classes_filter).take(one_class_cardinality).map(rename_f, num_parallel_calls=AUTOTUNE)
+            # Filter the classes and concatenate the two datasets
+            dataset_included = dataset.filter(class_filter)
+            dataset = dataset_included.concatenate(dataset_excluded)
+
+            # Map into the new labels
+            new_labels_list = [inverted_mapping[i] if i in classes else -1 for i in (LABELS + ['no gesture'])]
+            count = 0
+            for i in range(len(new_labels_list)):
+                if new_labels_list[i] != -1:
+                    new_labels_list[i] = count
+                    count += 1
+
+            table = tf.lookup.StaticHashTable(
+                initializer=tf.lookup.KeyValueTensorInitializer(
+                    keys=tf.constant(list(range(len(LABELS) + 1)), dtype=tf.int32),
+                    values=tf.constant(new_labels_list, dtype=tf.int32)
+                ),
+                default_value=tf.constant(-5, dtype=tf.int32)
+            )
+
+            dataset = dataset.map(lambda x, y: (x, table.lookup(y)), num_parallel_calls=AUTOTUNE)
+
+            # Shuffle and batch the dataset
+            dataset = dataset.shuffle(cardinality * (len(classes) + 1), seed=SEED)
+            return dataset.batch(self.batch_size)
+
+        # Apply all operations on the 3 splits
+        self.train = process(self.train)
+        self.validation = process(self.validation)
+        self.test = process(self.test)
 
 
     def preprocess(self, resize: bool) -> None:
