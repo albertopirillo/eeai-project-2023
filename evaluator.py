@@ -39,7 +39,7 @@ class Evaluator:
     def classification_report(self) -> None:
         print(metrics.classification_report(self.true_labels, self.pred_labels, target_names=self.class_labels))
 
-    def confusion_matrix(self, size: int) -> None:
+    def confusion_matrix(self, size: int = 1000) -> None:
         cm = metrics.confusion_matrix(self.true_labels, self.pred_labels)
         fig = px.imshow(cm, x=self.class_labels, y=self.class_labels, text_auto=True, width=size, height=size,
                         color_continuous_scale='blues')
