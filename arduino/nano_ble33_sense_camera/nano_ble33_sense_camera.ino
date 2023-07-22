@@ -171,7 +171,7 @@ void loop()
         uint32_t resize_row_sz;
         bool do_resize = false;
         int res = calculate_resize_dimensions(EI_CLASSIFIER_INPUT_WIDTH, EI_CLASSIFIER_INPUT_HEIGHT, &resize_col_sz, &resize_row_sz, &do_resize);
-        ei_printf("RES: %d\n", res); //debug
+        //ei_printf("RES: %d\n", res); //debug
         if (res) {
             ei_printf("ERR: Failed to calculate resize dimensions (%d)\r\n", res);
             break;
@@ -191,7 +191,6 @@ void loop()
             if (snapshot_mem) ei_free(snapshot_mem);
             break;
         }
-        ei_printf("IMAGE: %d\n", *snapshot_buf);
 
         ei::signal_t signal;
         signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
@@ -199,8 +198,7 @@ void loop()
 
         // run the impulse: DSP, neural network and the Anomaly algorithm
         ei_impulse_result_t result = { 0 };
-
-        EI_IMPULSE_ERROR ei_error = run_classifier(&signal, &result, debug_nn);
+        EI_IMPULSE_ERROR ei_error = run_classifier(&signal, &result, debug_nn); //the error is here
         if (ei_error != EI_IMPULSE_OK) {
             ei_printf("Failed to run impulse (%d)\n", ei_error);
             ei_free(snapshot_mem);
