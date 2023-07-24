@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Literal
 import numpy as np
@@ -5,6 +6,7 @@ import plotly.express as px
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from tensorflow import keras
+from tqdm import tqdm
 from tensorflow.python.data import AUTOTUNE
 
 
@@ -149,3 +151,25 @@ class Dataset:
             yaxis_range=[0, y_lim]
         )
         fig.show()
+
+
+    def export(self, split: subset, save_path: str) -> None:
+        if split == 'train': dataset = self.train
+        elif split == 'validation': dataset = self.validation
+        elif split == 'test': dataset = self.test
+        else: return
+
+        # Create class folders if they don't exist
+        for name in self.class_labels:
+            if not os.path.exists(f'{save_path}/{name}'):
+                os.makedirs(f'{save_path}/{name}')
+
+        # Save the images
+        count_written = {class_name: 0 for class_name in self.class_labels}
+        for image, label in tqdm(dataset.unbatch()):
+            class_name = self.class_labels[int(label)]
+            count_written[class_name] += 1
+            path = f'{save_path}/{class_name}/{class_name}{count_written[class_name]}.jpg'
+            keras.preprocessing.image.save_img(path, image, data_format='channels_last', file_format='JPEG')
+
+        print('Saving complete.')
