@@ -40,7 +40,8 @@ class Dataset:
         # "nothing" and "no gesture" classes must always be present
         if 'nothing' not in classes:
             classes.append('nothing')
-        classes.append('no gesture')
+        new_classes = [label for label in LABELS if label in classes]
+        classes = new_classes + ['no gesture']
 
         # Update class labels and mappings
         inverted_mapping = {label: i for i, label in enumerate(self.class_labels + ['no gesture'])}
