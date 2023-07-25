@@ -6,9 +6,9 @@ from typing import Literal, Any
 import matplotlib.pyplot as plt
 
 
-WEIGHTS_PATH: Path = Path('weights/MobileNetV1.0_2.96x96.color.bsize_96.lr_0_05.epoch_170.val_loss_3.61.val_accuracy_0.27.hdf5')
+WEIGHTS_PATH: Path = Path('weights/MobileNetV1.0_1.96x96.color.bsize_96.lr_0_05.epoch_66.val_accuracy_0.14.hdf5')
 IMAGE_SHAPE: tuple[int, int, int] = (96, 96, 3)
-WIDTH_MULTIPLIER = 0.2
+WIDTH_MULTIPLIER = 0.1
 
 
 class Model:
