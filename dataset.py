@@ -27,6 +27,7 @@ class Dataset:
         self.split_threshold: float = split_threshold
         self.class_labels: list[str, ...]  = LABELS
         self.class_mapping: dict[int, str] =  {i:label for i, label in enumerate(LABELS)}
+        self.pixels_rescaled: bool = False
         self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_PATH, batch_size=batch_size, validation_split=split_threshold, subset='training', seed=SEED, class_names=LABELS)
         self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_PATH, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=SEED, class_names=LABELS)
         self.test: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_REAL_PATH, batch_size=batch_size)
@@ -120,6 +121,7 @@ class Dataset:
         self.train = self.train.map(scale_pixels, num_parallel_calls=AUTOTUNE)
         self.validation = self.validation.map(scale_pixels, num_parallel_calls=AUTOTUNE)
         self.test = self.test.map(scale_pixels, num_parallel_calls=AUTOTUNE)
+        self.pixels_rescaled = True
 
 
     def cache(self) -> None:
@@ -137,7 +139,11 @@ class Dataset:
         plt.figure(figsize=(10, 10))
         for i, (image, label) in enumerate(dataset.unbatch().take(9)):
             _ = plt.subplot(3, 3, i + 1)
-            plt.imshow(image.numpy().astype('uint8'))
+            if self.pixels_rescaled:
+                image = (image.numpy().astype('float32') + 1) / 2
+                plt.imshow(image)
+            else:
+                plt.imshow(image.numpy().astype('uint8'))
             plt.title(self.class_mapping[int(label)])
             plt.axis("off")
         plt.show()
@@ -186,7 +192,7 @@ class Dataset:
 
     def use_augmentation(self) -> None:
         def augment_image(image, label):
-            # Flips the image randomly
+            # Flip the image randomly
             image = tf.image.random_flip_left_right(image)
 
             # Increase the image size, then randomly crop it down to the original dimensions
@@ -194,13 +200,16 @@ class Dataset:
             new_height = math.floor(resize_factor * IMAGE_SHAPE[0])
             new_width = math.floor(resize_factor * IMAGE_SHAPE[1])
             image = tf.image.resize_with_crop_or_pad(image, new_height, new_width)
-            image = tf.image.random_crop(image, size=IMAGE_SHAPE)
+            image = tf.image.random_crop(image, size=(self.batch_size, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3))
 
-            # Vary the brightness of the image
+            # Var the brightness of the image
             image = tf.image.random_brightness(image, max_delta=0.2)
 
             # Vary the contrast of the image
-            # TODO
+            # image = tf.image.random_contrast(image, lower=0.3, upper=0.7)
+
+            # Vary the saturation of the image
+            # image = tf.image.random_saturation(image, lower=0.3, upper=0.7)
 
             return image, label
 

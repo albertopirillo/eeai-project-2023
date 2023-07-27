@@ -8,7 +8,7 @@ from tensorflow import keras
 WEIGHTS_PATH: Path = Path('weights/MobileNetV1.0_25.128x128.color.h5')
 IMAGE_SHAPE: tuple[int, int, int] = (96, 96, 3)
 WIDTH_MULTIPLIER = 0.25
-DROPOUT_RATE = 0.1
+DROPOUT_RATE = 0.2
 
 
 class Model:
