@@ -1,5 +1,7 @@
+import math
 import os
 from pathlib import Path
+import random
 from typing import Literal
 import numpy as np
 import plotly.express as px
@@ -113,6 +115,12 @@ class Dataset:
             self.validation = self.validation.map(resize_image, num_parallel_calls=AUTOTUNE)
             self.test = self.test.map(resize_image, num_parallel_calls=AUTOTUNE)
 
+        # Scale pixels between -1 and 1
+        scale_pixels = lambda x, y: (keras.layers.Rescaling(1. / 127.5, offset=-1)(x), y)
+        self.train = self.train.map(scale_pixels, num_parallel_calls=AUTOTUNE)
+        self.validation = self.validation.map(scale_pixels, num_parallel_calls=AUTOTUNE)
+        self.test = self.test.map(scale_pixels, num_parallel_calls=AUTOTUNE)
+
 
     def cache(self) -> None:
         self.train = self.train.cache()
@@ -174,3 +182,27 @@ class Dataset:
             keras.preprocessing.image.save_img(path, image, data_format='channels_last', file_format='JPEG')
 
         print('Saving complete.')
+
+
+    def use_augmentation(self) -> None:
+        def augment_image(image, label):
+            # Flips the image randomly
+            image = tf.image.random_flip_left_right(image)
+
+            # Increase the image size, then randomly crop it down to the original dimensions
+            resize_factor = random.uniform(1, 1.2)
+            new_height = math.floor(resize_factor * IMAGE_SHAPE[0])
+            new_width = math.floor(resize_factor * IMAGE_SHAPE[1])
+            image = tf.image.resize_with_crop_or_pad(image, new_height, new_width)
+            image = tf.image.random_crop(image, size=IMAGE_SHAPE)
+
+            # Vary the brightness of the image
+            image = tf.image.random_brightness(image, max_delta=0.2)
+
+            # Vary the contrast of the image
+            # TODO
+
+            return image, label
+
+        # Augmentation is applied to the training dataset only
+        self.train = self.train.map(augment_image, num_parallel_calls=AUTOTUNE)
