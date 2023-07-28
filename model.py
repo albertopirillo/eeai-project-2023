@@ -1,14 +1,14 @@
 from datetime import datetime
 from pathlib import Path
-import tensorflow as tf
-from tensorflow import keras
 from typing import Literal, Any
 import matplotlib.pyplot as plt
+import tensorflow as tf
+from tensorflow import keras
 
-
-WEIGHTS_PATH: Path = Path('weights/MobileNetV1.0_1.96x96.color.bsize_96.lr_0_05.epoch_66.val_accuracy_0.14.hdf5')
+WEIGHTS_PATH: Path = Path('weights/MobileNetV1.0_25.128x128.color.h5')
 IMAGE_SHAPE: tuple[int, int, int] = (96, 96, 3)
-WIDTH_MULTIPLIER = 0.1
+WIDTH_MULTIPLIER = 0.25
+DROPOUT_RATE = 0.2
 
 
 class Model:
@@ -31,21 +31,26 @@ class Model:
         self.model = keras.Sequential([
             # Input layer
             keras.Input(shape=IMAGE_SHAPE, name='first_layer'),
-            # Pre-processing for MobileNetV1
-            keras.layers.Lambda(tf.keras.applications.mobilenet.preprocess_input, name='preprocessing'),
             # MobileNetV1
             self.base_model,
-            # Convert tensors to vectors
-            keras.layers.GlobalMaxPooling2D(name='pooling'),
+            # Reshape the output of the base model
+            keras.layers.Reshape((-1, self.base_model.layers[-1].output.shape[3])),
+            # Dropout to prevent overfitting
+            keras.layers.Dropout(DROPOUT_RATE),
+            # Flatten the output tensors into a single vector
+            keras.layers.Flatten(),
             # Fully-connected classifier
-            keras.layers.Dense(num_classes, name='classifier')
+            keras.layers.Dense(num_classes, name='classifier'),
+            # Softmax to convert logits to probabilities
+            keras.layers.Softmax()
         ])
 
 
     def create_callbacks(self, log_dir: Path, verbose: int = 1) -> list[keras.callbacks]:
         # Custom callback to stop training at 99% accuracy
         def check_accuracy(_, logs):
-            if logs.get('val_accuracy') >= 0.99:
+            if logs.get('accuracy') >= 0.99 and logs.get('val_accuracy') >= 0.99:
+                print('\nEarly stopping at 99% accuracy.')
                 self.model.stop_training = True
 
         return [
@@ -83,7 +88,7 @@ class Model:
 
     def compile(self, learning_rate: float) -> None:
         self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
-                           loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                           loss=keras.losses.SparseCategoricalCrossentropy(),
                            metrics=['accuracy'])
 
 
@@ -96,7 +101,7 @@ class Model:
         self.base_model.trainable = True
         # Recompile the model to apply the changes
         self.model.compile(optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
-                           loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                           loss=keras.losses.SparseCategoricalCrossentropy(),
                            metrics=['accuracy'])
         self.fine_tuning_history = self.model.fit(train_ds, validation_data=validation_ds, epochs=epochs,
                                                   callbacks=self.create_callbacks(log_dir / 'fine-tuning'))
@@ -117,8 +122,9 @@ class Model:
         plt.title('Training and Validation Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Cross Entropy')
-        plt.plot(loss, label='Training Loss')
-        plt.plot(val_loss, label='Validation Loss')
+        plt.semilogy(loss, label='Training Loss')
+        plt.semilogy(val_loss, label='Validation Loss')
+        plt.legend()
 
         plt.subplot(1, 2, 2)
         plt.title('Training and Validation Accuracy')
@@ -127,6 +133,7 @@ class Model:
         plt.plot(acc, label='Training Accuracy')
         plt.plot(val_acc, label='Validation Accuracy')
         plt.ylim([min(plt.ylim()), 1])
+        plt.legend()
 
         plt.show()
 

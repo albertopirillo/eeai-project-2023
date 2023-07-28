@@ -18,7 +18,10 @@ if __name__ == '__main__':
     logging.info('Loading dataset...')
     data = Dataset(split_threshold=0.2, batch_size=32)
     data.preprocess(resize=True)
-    model = Model(num_classes=29)
+    logging.info('Using data augmentation.')
+    data.use_augmentation()
+    data.cache()
+    model = Model(num_classes=len(data.class_labels))
 
     # Fit the model
     model.compile(learning_rate=1e-3)
