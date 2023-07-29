@@ -12,8 +12,6 @@ from tqdm import tqdm
 from tensorflow.python.data import AUTOTUNE
 
 
-ASL_PATH: Path = Path('data/asl_alphabet_train/asl_alphabet_train')
-ASL_REAL_PATH: Path= Path('data/asl_alphabet_real/asl_alphabet_real')
 LABELS: list[str, ...] = ['A', 'B', 'C', 'D', 'del', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'nothing', 'O', 'P', 'Q', 'R', 'S', 'space', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 SEED: int = 42
 CROP_RATIO: float = 0.96
@@ -22,21 +20,26 @@ subset = Literal['train', 'validation', 'test']
 
 
 class Dataset:
-    def __init__(self, split_threshold: float, batch_size: int) -> None:
+    def __init__(self, split_threshold: float, batch_size: int, path: Path | str) -> None:
         self.batch_size: int = batch_size
         self.split_threshold: float = split_threshold
         self.class_labels: list[str, ...]  = LABELS
         self.class_mapping: dict[int, str] =  {i:label for i, label in enumerate(LABELS)}
         self.pixels_rescaled: bool = False
-        self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_PATH, batch_size=batch_size, validation_split=split_threshold, subset='training', seed=SEED, class_names=LABELS)
-        self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_PATH, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=SEED, class_names=LABELS)
-        self.test: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_REAL_PATH, batch_size=batch_size)
+
+        if split_threshold == 0:
+            self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=SEED, class_names=LABELS)
+            self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=SEED, class_names=LABELS)
+        else:
+            self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='training', seed=SEED, class_names=LABELS)
+            self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=SEED, class_names=LABELS)
+            # self.test: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_REAL_PATH, batch_size=batch_size)
 
 
     def print_num_batches(self) -> None:
         print('Number of train batches:', int(self.train.cardinality()))
         print('Number of validation batches:', int(self.validation.cardinality()))
-        print('Number of test batches:', int(self.test.cardinality()))
+        # print('Number of test batches:', int(self.test.cardinality()))
 
 
     def select_classes(self, classes: list[str, ...]) -> None:
@@ -95,45 +98,47 @@ class Dataset:
         # Apply all operations on the 3 splits
         self.train = process(self.train)
         self.validation = process(self.validation)
-        self.test = process(self.test)
+        # self.test = process(self.test)
 
 
-    def preprocess(self, resize: bool) -> None:
+    def preprocess(self, resize: bool, crop: bool) -> None:
         # Enable prefetching to increase performance
         self.train = self.train.prefetch(buffer_size=AUTOTUNE)
         self.validation = self.validation.prefetch(buffer_size=AUTOTUNE)
-        self.test = self.test.prefetch(buffer_size=AUTOTUNE)
+        # self.test = self.test.prefetch(buffer_size=AUTOTUNE)
 
-        # Crop to remove the blue border
-        crop = lambda x, y: (tf.image.central_crop(x, CROP_RATIO), y)
-        self.train = self.train.map(crop, num_parallel_calls=AUTOTUNE)
-        self.validation = self.validation.map(crop, num_parallel_calls=AUTOTUNE)
+        # Crop to remove the blue border if specified
+        if crop:
+            crop = lambda x, y: (tf.image.central_crop(x, CROP_RATIO), y)
+            self.train = self.train.map(crop, num_parallel_calls=AUTOTUNE)
+            self.validation = self.validation.map(crop, num_parallel_calls=AUTOTUNE)
+            # self.test = self.test.map(crop, num_parallel_calls=AUTOTUNE)
 
         # Resize if specified
         if resize:
             resize_image = lambda x, y: (tf.image.resize(x, IMAGE_SHAPE), y)
             self.train = self.train.map(resize_image, num_parallel_calls=AUTOTUNE)
             self.validation = self.validation.map(resize_image, num_parallel_calls=AUTOTUNE)
-            self.test = self.test.map(resize_image, num_parallel_calls=AUTOTUNE)
+            # self.test = self.test.map(resize_image, num_parallel_calls=AUTOTUNE)
 
         # Scale pixels between -1 and 1
         scale_pixels = lambda x, y: (keras.layers.Rescaling(1. / 127.5, offset=-1)(x), y)
         self.train = self.train.map(scale_pixels, num_parallel_calls=AUTOTUNE)
         self.validation = self.validation.map(scale_pixels, num_parallel_calls=AUTOTUNE)
-        self.test = self.test.map(scale_pixels, num_parallel_calls=AUTOTUNE)
+        # self.test = self.test.map(scale_pixels, num_parallel_calls=AUTOTUNE)
         self.pixels_rescaled = True
 
 
     def cache(self) -> None:
         self.train = self.train.cache()
         self.validation = self.validation.cache()
-        self.test = self.test.cache()
+        # self.test = self.test.cache()
 
 
     def visualize_images(self, split: subset):
         if split == 'train': dataset = self.train
         elif split == 'validation': dataset = self.validation
-        elif split == 'test': dataset = self.test
+        # elif split == 'test': dataset = self.test
         else: return
 
         plt.figure(figsize=(10, 10))
@@ -152,7 +157,7 @@ class Dataset:
     def plot_class_distribution(self, split: subset, y_lim: int = 3100) -> None:
         if split == 'train': dataset = self.train
         elif split == 'validation': dataset = self.validation
-        elif split == 'test': dataset = self.test
+        # elif split == 'test': dataset = self.test
         else: return
 
         labels = np.concatenate([y for x, y in dataset], axis=0)
@@ -171,7 +176,7 @@ class Dataset:
     def export(self, split: subset, save_path: str) -> None:
         if split == 'train': dataset = self.train
         elif split == 'validation': dataset = self.validation
-        elif split == 'test': dataset = self.test
+        # elif split == 'test': dataset = self.test
         else: return
 
         # Create class folders if they don't exist
@@ -200,7 +205,7 @@ class Dataset:
             new_height = math.floor(resize_factor * IMAGE_SHAPE[0])
             new_width = math.floor(resize_factor * IMAGE_SHAPE[1])
             image = tf.image.resize_with_crop_or_pad(image, new_height, new_width)
-            image = tf.image.random_crop(image, size=(self.batch_size, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3))
+            image = tf.image.random_crop(image, size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3))
 
             # Var the brightness of the image
             image = tf.image.random_brightness(image, max_delta=0.2)
@@ -214,4 +219,4 @@ class Dataset:
             return image, label
 
         # Augmentation is applied to the training dataset only
-        self.train = self.train.map(augment_image, num_parallel_calls=AUTOTUNE)
+        self.train = self.train.unbatch().map(augment_image, num_parallel_calls=AUTOTUNE).batch(self.batch_size)
