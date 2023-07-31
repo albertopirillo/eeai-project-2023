@@ -12,8 +12,7 @@ from tqdm import tqdm
 from tensorflow.python.data import AUTOTUNE
 
 
-LABELS: list[str, ...] = ['C', 'G', 'H', 'nothing', 'Q', 'space', 'no gesture']
-# LABELS: list[str, ...] = ['A', 'B', 'C', 'D', 'del', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'nothing', 'O', 'P', 'Q', 'R', 'S', 'space', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+LABELS: list[str, ...] = ['A', 'B', 'C', 'D', 'del', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'nothing', 'O', 'P', 'Q', 'R', 'S', 'space', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 SEED: int = 42
 CROP_RATIO: float = 0.96
 IMAGE_SHAPE: tuple[int, int] = (96, 96)
@@ -21,18 +20,20 @@ subset = Literal['train', 'validation', 'test']
 
 
 class Dataset:
-    def __init__(self, split_threshold: float, batch_size: int, path: Path | str) -> None:
+    def __init__(self, split_threshold: float, batch_size: int, path: Path | str, labels: list[str, ...] = None) -> None:
         self.batch_size: int = batch_size
         self.split_threshold: float = split_threshold
-        self.class_labels: list[str, ...]  = LABELS
-        self.class_mapping: dict[int, str] =  {i:label for i, label in enumerate(LABELS)}
+
+        if labels is None: labels = LABELS
+        self.class_labels: list[str, ...]  = labels
+        self.class_mapping: dict[int, str] =  {i:label for i, label in enumerate(labels)}
 
         if split_threshold == 0:
-            self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=SEED, class_names=LABELS)
-            self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=SEED, class_names=LABELS)
+            self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=SEED, class_names=labels)
+            self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=SEED, class_names=labels)
         else:
-            self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='training', seed=SEED, class_names=LABELS)
-            self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=SEED, class_names=LABELS)
+            self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='training', seed=SEED, class_names=labels)
+            self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=SEED, class_names=labels)
 
 
     def print_num_batches(self) -> None:
@@ -169,7 +170,7 @@ class Dataset:
         fig.show()
 
 
-    def export(self, split: subset, save_path: str) -> None:
+    def export(self, split: subset, save_path: str, tag: str, subsample: bool = False) -> None:
         if split == 'train': dataset = self.train
         elif split == 'validation': dataset = self.validation
         # elif split == 'test': dataset = self.test
@@ -182,11 +183,15 @@ class Dataset:
 
         # Save the images
         count_written = {class_name: 0 for class_name in self.class_labels}
+        iteration_counter = {class_name: 0 for class_name in self.class_labels}
         for image, label in tqdm(dataset.unbatch()):
             class_name = self.class_labels[int(label)]
-            count_written[class_name] += 1
-            path = f'{save_path}/{class_name}/{class_name}{count_written[class_name]}.jpg'
-            keras.preprocessing.image.save_img(path, image, data_format='channels_last', file_format='JPEG')
+            if subsample:
+                iteration_counter[class_name] += 1
+            if iteration_counter[class_name] % 100 == 0:
+                count_written[class_name] += 1
+                path = f'{save_path}/{class_name}/{class_name}_{tag}_{count_written[class_name]}.jpg'
+                keras.preprocessing.image.save_img(path, image, data_format='channels_last', file_format='JPEG')
 
         print('Saving complete.')
 
