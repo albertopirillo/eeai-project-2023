@@ -12,7 +12,8 @@ from tqdm import tqdm
 from tensorflow.python.data import AUTOTUNE
 
 
-LABELS: list[str, ...] = ['A', 'B', 'C', 'D', 'del', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'nothing', 'O', 'P', 'Q', 'R', 'S', 'space', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+LABELS: list[str, ...] = ['C', 'G', 'H', 'nothing', 'Q', 'space', 'no gesture']
+# LABELS: list[str, ...] = ['A', 'B', 'C', 'D', 'del', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'nothing', 'O', 'P', 'Q', 'R', 'S', 'space', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 SEED: int = 42
 CROP_RATIO: float = 0.96
 IMAGE_SHAPE: tuple[int, int] = (96, 96)
@@ -25,7 +26,6 @@ class Dataset:
         self.split_threshold: float = split_threshold
         self.class_labels: list[str, ...]  = LABELS
         self.class_mapping: dict[int, str] =  {i:label for i, label in enumerate(LABELS)}
-        self.pixels_rescaled: bool = False
 
         if split_threshold == 0:
             self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=SEED, class_names=LABELS)
@@ -33,7 +33,6 @@ class Dataset:
         else:
             self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='training', seed=SEED, class_names=LABELS)
             self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=SEED, class_names=LABELS)
-            # self.test: tf.data.Dataset = keras.utils.image_dataset_from_directory(ASL_REAL_PATH, batch_size=batch_size)
 
 
     def print_num_batches(self) -> None:
@@ -121,12 +120,13 @@ class Dataset:
             self.validation = self.validation.map(resize_image, num_parallel_calls=AUTOTUNE)
             # self.test = self.test.map(resize_image, num_parallel_calls=AUTOTUNE)
 
+
+    def rescale(self) -> None:
         # Scale pixels between -1 and 1
-        scale_pixels = lambda x, y: (keras.layers.Rescaling(1. / 127.5, offset=-1)(x), y)
+        scale_pixels = lambda x, y: (keras.applications.mobilenet.preprocess_input(x), y)
         self.train = self.train.map(scale_pixels, num_parallel_calls=AUTOTUNE)
         self.validation = self.validation.map(scale_pixels, num_parallel_calls=AUTOTUNE)
         # self.test = self.test.map(scale_pixels, num_parallel_calls=AUTOTUNE)
-        self.pixels_rescaled = True
 
 
     def cache(self) -> None:
@@ -135,20 +135,16 @@ class Dataset:
         # self.test = self.test.cache()
 
 
-    def visualize_images(self, split: subset):
+    def visualize_images(self, split: subset, num_images: int = 3) -> None:
         if split == 'train': dataset = self.train
         elif split == 'validation': dataset = self.validation
         # elif split == 'test': dataset = self.test
         else: return
 
-        plt.figure(figsize=(10, 10))
-        for i, (image, label) in enumerate(dataset.unbatch().take(9)):
-            _ = plt.subplot(3, 3, i + 1)
-            if self.pixels_rescaled:
-                image = (image.numpy().astype('float32') + 1) / 2
-                plt.imshow(image)
-            else:
-                plt.imshow(image.numpy().astype('uint8'))
+        plt.figure(figsize=(12, 12))
+        for i, (image, label) in enumerate(dataset.unbatch().take(num_images ** 2)):
+            _ = plt.subplot(num_images, num_images, i + 1)
+            plt.imshow(image.numpy().astype('uint8'))
             plt.title(self.class_mapping[int(label)])
             plt.axis("off")
         plt.show()
