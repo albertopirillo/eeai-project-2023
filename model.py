@@ -7,8 +7,9 @@ from tensorflow import keras
 
 WEIGHTS_PATH: Path = Path('weights/MobileNetV1.0_25.128x128.color.h5')
 IMAGE_SHAPE: tuple[int, int, int] = (96, 96, 3)
-WIDTH_MULTIPLIER = 0.25
-DROPOUT_RATE = 0.2
+WIDTH_MULTIPLIER: float = 0.25
+FE_DROPOUT_RATE: float = 1e-3
+DENSE_DROPOUT_RATE: float = 0.1
 
 
 class Model:
@@ -19,6 +20,7 @@ class Model:
         self.base_model = keras.applications.MobileNet(
             include_top=True,
             weights = WEIGHTS_PATH,
+            dropout=FE_DROPOUT_RATE,
             alpha=WIDTH_MULTIPLIER,
             input_shape=IMAGE_SHAPE
         )
@@ -36,7 +38,7 @@ class Model:
             # Reshape the output of the base model
             keras.layers.Reshape((-1, self.base_model.layers[-1].output.shape[3])),
             # Dropout to prevent overfitting
-            keras.layers.Dropout(DROPOUT_RATE),
+            keras.layers.Dropout(DENSE_DROPOUT_RATE),
             # Flatten the output tensors into a single vector
             keras.layers.Flatten(),
             # Fully-connected classifier
@@ -57,7 +59,7 @@ class Model:
             keras.callbacks.EarlyStopping(
                 monitor="val_loss",
                 min_delta=0.01,
-                patience=10,
+                patience=20,
                 restore_best_weights=True,
                 verbose=verbose
             ),
@@ -65,8 +67,8 @@ class Model:
                 monitor="val_loss",
                 min_delta=0.025,
                 factor=0.1,
-                patience=3,
-                min_lr=1e-7,
+                patience=5,
+                min_lr=1e-8,
                 verbose=verbose
             ),
             keras.callbacks.TerminateOnNaN(),
