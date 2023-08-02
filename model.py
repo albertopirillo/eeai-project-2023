@@ -8,8 +8,8 @@ from tensorflow import keras
 WEIGHTS_PATH: Path = Path('weights/MobileNetV1.0_25.128x128.color.h5')
 IMAGE_SHAPE: tuple[int, int, int] = (96, 96, 3)
 WIDTH_MULTIPLIER: float = 0.25
-FE_DROPOUT_RATE: float = 1e-3
-DENSE_DROPOUT_RATE: float = 0.1
+FE_DROPOUT_RATE: float = 1e-2
+DENSE_DROPOUT_RATE: float = 0.3
 
 
 class Model:
@@ -59,18 +59,18 @@ class Model:
             keras.callbacks.EarlyStopping(
                 monitor="val_loss",
                 min_delta=0.01,
-                patience=20,
+                patience=30,
                 restore_best_weights=True,
                 verbose=verbose
             ),
-            keras.callbacks.ReduceLROnPlateau(
-                monitor="val_loss",
-                min_delta=0.025,
-                factor=0.1,
-                patience=5,
-                min_lr=1e-8,
-                verbose=verbose
-            ),
+            # keras.callbacks.ReduceLROnPlateau(
+            #     monitor="val_loss",
+            #     min_delta=0.025,
+            #     factor=0.1,
+            #     patience=10,
+            #     min_lr=1e-8,
+            #     verbose=verbose
+            # ),
             keras.callbacks.TerminateOnNaN(),
             keras.callbacks.LambdaCallback(on_epoch_end=check_accuracy),
             # Enable TensorBoard to monitor training
@@ -139,6 +139,25 @@ class Model:
 
         plt.show()
 
+
+    def quantize(self, representative_data: tf.data.Dataset, save_path: Path) -> None:
+        def representative_data_gen():
+            for image, _ in representative_data.unbatch().batch(1).take(1000):
+                yield [image]
+
+        # Full-integer quantization
+        self.model.save('temp/model', save_format='tf')
+        converter = tf.lite.TFLiteConverter.from_saved_model('temp/model')
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_data_gen
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.uint8
+        converter.inference_output_type = tf.uint8
+
+        # Save the quantized model
+        tflite_model = converter.convert()
+        with open(save_path / 'asl_mobilenet_quant.tflite', 'wb') as f:
+            f.write(tflite_model)
 
     def save(self, save_path: Path) -> None:
         self.model.save(save_path / 'asl_mobilenet_tuned.keras', save_format='keras')

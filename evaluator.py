@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from sklearn.preprocessing import LabelBinarizer
 from tensorflow import keras
 from sklearn import metrics
 import plotly.express as px
@@ -7,11 +8,17 @@ from tqdm import tqdm
 
 
 class Evaluator:
-    def __init__(self, model: keras.Model, dataset: tf.data.Dataset, class_labels: tuple[str, ...]) -> None:
+    def __init__(self, model: keras.Model | tf.lite.Interpreter, dataset: tf.data.Dataset,
+                 class_labels: tuple[str, ...], quantized: bool = False) -> None:
         self.model = model
         self.dataset = dataset
         self.class_labels = class_labels
-        self.true_labels, self.pred_labels = self.compute_labels()
+        self.quantized = quantized
+        if self.quantized:
+            self.true_labels, self.pred_labels = self.compute_labels_quantized()
+        else:
+            self.true_labels, self.pred_labels = self.compute_labels()
+
 
     def compute_labels(self) -> tuple[np.ndarray, np.ndarray]:
         true_labels = np.array([])
@@ -21,7 +28,7 @@ class Evaluator:
             # Tuple unpacking
             images, t_labels = batch
 
-            # Compute new labels
+            # Compute the predicted labels
             p_labels = self.model.predict_on_batch(images)
             p_labels = np.argmax(p_labels, axis=1)
 
@@ -31,13 +38,52 @@ class Evaluator:
 
         return true_labels, pred_labels
 
+
+    def compute_labels_quantized(self) -> tuple[np.ndarray, np.ndarray]:
+        true_labels = np.array([])
+        pred_labels = np.array([])
+
+        # Set the input shape of the interpreter
+        input_details = self.model.get_input_details()[0]
+        self.model.resize_tensor_input(input_details['index'], [1, 96, 96, 3])
+        self.model.allocate_tensors()
+
+        for batch in tqdm(self.dataset.unbatch().batch(1)):
+            # Tuple unpacking
+            images, t_labels = batch
+
+            # Quantize the input
+            input_details = self.model.get_input_details()[0]
+            input_scale, input_zero_point = input_details["quantization"]
+            images = images / input_scale + input_zero_point
+            images = images.numpy().astype("uint8")
+
+            # Compute the predicted labels
+            self.model.set_tensor(input_details['index'], images)
+            self.model.invoke()
+            output_details = self.model.get_output_details()[0]
+            p_labels = self.model.get_tensor(output_details['index'])
+            p_labels = np.argmax(p_labels, axis=1)
+
+            # Concatenate in a single vector
+            true_labels = np.concatenate([true_labels, t_labels])
+            pred_labels = np.concatenate([pred_labels, p_labels])
+
+        return true_labels, pred_labels
+
+
     def evaluate(self):
-        loss, accuracy = self.model.evaluate(self.dataset)
+        accuracy = metrics.accuracy_score(self.true_labels, self.pred_labels)
+        ohe_true_labels = LabelBinarizer().fit_transform(self.true_labels)
+        ohe_pred_labels = LabelBinarizer().fit_transform(self.pred_labels)
+        loss = metrics.log_loss(ohe_true_labels, ohe_pred_labels)
         print(f'Loss function: {loss:.3f}')
         print(f'Accuracy: {accuracy:.2%}')
 
+
     def classification_report(self) -> None:
         print(metrics.classification_report(self.true_labels, self.pred_labels, target_names=self.class_labels))
+
 
     def confusion_matrix(self, size: int = 1000) -> None:
         cm = metrics.confusion_matrix(self.true_labels, self.pred_labels)
