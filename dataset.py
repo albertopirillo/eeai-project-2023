@@ -13,27 +13,27 @@ from tensorflow.python.data import AUTOTUNE
 
 
 LABELS: list[str, ...] = ['A', 'B', 'C', 'D', 'del', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'nothing', 'O', 'P', 'Q', 'R', 'S', 'space', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-SEED: int = 42
 CROP_RATIO: float = 0.96
 IMAGE_SHAPE: tuple[int, int] = (96, 96)
 subset = Literal['train', 'validation', 'test']
 
 
 class Dataset:
-    def __init__(self, split_threshold: float, batch_size: int, path: Path | str, labels: list[str, ...] = None) -> None:
+    def __init__(self, split_threshold: float, batch_size: int, path: Path | str, seed: int, labels: list[str, ...] = None) -> None:
         self.batch_size: int = batch_size
         self.split_threshold: float = split_threshold
+        self.seed: int = seed
 
         if labels is None: labels = LABELS
         self.class_labels: list[str, ...]  = labels
         self.class_mapping: dict[int, str] =  {i:label for i, label in enumerate(labels)}
 
         if split_threshold == 0:
-            self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=SEED, class_names=labels)
-            self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=SEED, class_names=labels)
+            self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=seed, class_names=labels)
+            self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, seed=seed, class_names=labels)
         else:
-            self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='training', seed=SEED, class_names=labels)
-            self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=SEED, class_names=labels)
+            self.train: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='training', seed=seed, class_names=labels)
+            self.validation: tf.data.Dataset = keras.utils.image_dataset_from_directory(path, batch_size=batch_size, validation_split=split_threshold, subset='validation', seed=seed, class_names=labels)
 
 
     def print_num_batches(self) -> None:
@@ -92,7 +92,7 @@ class Dataset:
             dataset = dataset.map(lambda x, y: (x, table.lookup(y)), num_parallel_calls=AUTOTUNE)
 
             # Shuffle and batch the dataset
-            dataset = dataset.shuffle(cardinality * (len(classes) + 1), seed=SEED)
+            dataset = dataset.shuffle(cardinality * (len(classes) + 1), seed=self.seed)
             return dataset.batch(self.batch_size)
 
         # Apply all operations on the 3 splits
@@ -190,7 +190,7 @@ class Dataset:
                 iteration_counter[class_name] += 1
             if iteration_counter[class_name] % 100 == 0:
                 count_written[class_name] += 1
-                path = f'{save_path}/{class_name}/{class_name}_{tag}_{count_written[class_name]}.jpg'
+                path = f'{save_path}/{class_name}/{class_name}.{tag}.{count_written[class_name]}.jpg'
                 keras.preprocessing.image.save_img(path, image, data_format='channels_last', file_format='JPEG')
 
         print('Saving complete.')

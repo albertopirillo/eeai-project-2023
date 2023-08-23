@@ -109,7 +109,7 @@ class Model:
                                                   callbacks=self.create_callbacks(log_dir / 'fine-tuning'))
 
 
-    def plot_history(self, phase: Literal['fit', 'fine_tuning']) -> None:
+    def plot_history(self, phase: Literal['fit', 'fine_tuning'], log_scale: bool = False) -> None:
         if phase == 'fit': history = self.fit_history
         elif phase == 'fine_tuning': history = self.fine_tuning_history
         else: return
@@ -124,8 +124,12 @@ class Model:
         plt.title('Training and Validation Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Cross Entropy')
-        plt.semilogy(loss, label='Training Loss')
-        plt.semilogy(val_loss, label='Validation Loss')
+        if log_scale:
+            plt.semilogy(loss, label='Training Loss')
+            plt.semilogy(val_loss, label='Validation Loss')
+        else:
+            plt.plot(loss, label='Training Loss')
+            plt.plot(val_loss, label='Validation Loss')
         plt.legend()
 
         plt.subplot(1, 2, 2)
