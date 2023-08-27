@@ -85,7 +85,7 @@ class Evaluator:
         print(metrics.classification_report(self.true_labels, self.pred_labels, target_names=self.class_labels))
 
 
-    def confusion_matrix(self, size: int = 1000) -> None:
+    def confusion_matrix(self, size: int = 1000, save_path: str = None) -> None:
         cm = metrics.confusion_matrix(self.true_labels, self.pred_labels)
         fig = px.imshow(cm, x=self.class_labels, y=self.class_labels, text_auto=True, width=size, height=size,
                         color_continuous_scale='blues')
@@ -94,10 +94,13 @@ class Evaluator:
             xaxis_title_text='Actual class',
             yaxis_title_text='Predicted class',
         )
+        if save_path is not None:
+            fig.write_image(save_path, scale=2.5)
         fig.show()
 
 
-    def error_per_class(self) -> None:
+
+    def error_per_class(self, save_path: str = None) -> None:
         cm = metrics.confusion_matrix(self.true_labels, self.pred_labels)
         total_errors = cm.sum(axis=1) - cm.diagonal()
         fig = px.bar(x=self.class_labels, y=total_errors, orientation='v')
@@ -107,15 +110,17 @@ class Evaluator:
             yaxis_title_text='Count',
             bargap=0.3,
         )
+        if save_path is not None:
+            fig.write_image(save_path, scale=2.5)
         fig.show()
 
 
-    def relative_errors(self) -> None:
-        self.get_relative_errors(self.true_labels, self.pred_labels, self.class_labels)
+    def relative_errors(self, save_path: str) -> None:
+        self.get_relative_errors(self.true_labels, self.pred_labels, self.class_labels, save_path)
 
 
     @staticmethod
-    def get_relative_errors(true_labels, pred_labels, class_labels) -> None:
+    def get_relative_errors(true_labels, pred_labels, class_labels, save_path: str = None) -> None:
         cm = metrics.confusion_matrix(true_labels, pred_labels)
         correct_percentage = cm.diagonal() / cm.sum(axis=1)
         rel_errors = 1 - correct_percentage
@@ -126,4 +131,6 @@ class Evaluator:
             yaxis_title_text='Count',
             bargap=0.3,
         )
+        if save_path is not None:
+            fig.write_image(save_path, scale=2.5)
         fig.show()

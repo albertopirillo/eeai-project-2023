@@ -7,3 +7,4 @@ jupyter
 pydot
 graphviz
 tqdm
+kaleido

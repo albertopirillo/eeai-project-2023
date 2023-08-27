@@ -42,15 +42,21 @@ class Dataset:
         # print('Number of test batches:', int(self.test.cardinality()))
 
 
-    def select_classes(self, classes: list[str, ...]) -> None:
-        # "nothing" and "no gesture" classes must always be present
+    def select_classes(self, classes: list[str, ...], add_no_gesture_class: bool = False) -> None:
+        # "nothing" class must always be present
         if 'nothing' not in classes:
             classes.append('nothing')
         new_classes = [label for label in LABELS if label in classes]
-        classes = new_classes + ['no gesture']
+        if add_no_gesture_class:
+            classes = new_classes + ['no gesture']
+        else:
+            classes = new_classes
 
         # Update class labels and mappings
-        inverted_mapping = {label: i for i, label in enumerate(self.class_labels + ['no gesture'])}
+        if add_no_gesture_class:
+            inverted_mapping = {label: i for i, label in enumerate(self.class_labels + ['no gesture'])}
+        else:
+            inverted_mapping = {label: i for i, label in enumerate(self.class_labels)}
         self.class_labels = classes
         self.class_mapping = {i:label for i, label in enumerate(self.class_labels)}
 
@@ -67,23 +73,30 @@ class Dataset:
             cardinality = dataset.cardinality() * self.batch_size
             one_class_cardinality = dataset.cardinality() * self.batch_size // len(LABELS)
             dataset = dataset.unbatch()
-            # Generate the 'no gesture' class by sampling randomly the excluded classes
-            dataset_excluded = dataset.filter(excluded_classes_filter).take(one_class_cardinality).map(rename_f, num_parallel_calls=AUTOTUNE)
-            # Filter the classes and concatenate the two datasets
-            dataset_included = dataset.filter(class_filter)
-            dataset = dataset_included.concatenate(dataset_excluded)
+            if add_no_gesture_class:
+                # Generate the 'no gesture' class by sampling randomly the excluded classes
+                dataset_excluded = dataset.filter(excluded_classes_filter).take(one_class_cardinality).map(rename_f, num_parallel_calls=AUTOTUNE)
+                # Filter the classes and concatenate the two datasets
+                dataset_included = dataset.filter(class_filter)
+                dataset = dataset_included.concatenate(dataset_excluded)
+            else:
+                dataset = dataset.filter(class_filter)
 
             # Map into the new labels
-            new_labels_list = [inverted_mapping[i] if i in classes else -1 for i in (LABELS + ['no gesture'])]
+            if add_no_gesture_class:
+                new_labels_list = [inverted_mapping[i] if i in classes else -1 for i in (LABELS + ['no gesture'])]
+            else:
+                new_labels_list = [inverted_mapping[i] if i in classes else -1 for i in LABELS]
             count = 0
             for i in range(len(new_labels_list)):
                 if new_labels_list[i] != -1:
                     new_labels_list[i] = count
                     count += 1
 
+            keys_size = len(LABELS) + 1 if add_no_gesture_class else len(LABELS)
             table = tf.lookup.StaticHashTable(
                 initializer=tf.lookup.KeyValueTensorInitializer(
-                    keys=tf.constant(list(range(len(LABELS) + 1)), dtype=tf.int32),
+                    keys=tf.constant(list(range(keys_size)), dtype=tf.int32),
                     values=tf.constant(new_labels_list, dtype=tf.int32)
                 ),
                 default_value=tf.constant(-5, dtype=tf.int32)
