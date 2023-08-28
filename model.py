@@ -87,7 +87,7 @@ class Model:
 
 
     def plot_model(self, dpi: int = 300) -> Any:
-        return keras.utils.plot_model(self.model, to_file='model.png', show_shapes=True, show_layer_names=True, dpi=dpi)
+        return keras.utils.plot_model(self.model, to_file='model.png', show_shapes=True, show_layer_names=False, dpi=dpi)
 
 
     def compile(self, learning_rate: float) -> None:
