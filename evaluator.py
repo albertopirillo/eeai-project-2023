@@ -103,7 +103,7 @@ class Evaluator:
     def error_per_class(self, save_path: str = None) -> None:
         cm = metrics.confusion_matrix(self.true_labels, self.pred_labels)
         total_errors = cm.sum(axis=1) - cm.diagonal()
-        fig = px.bar(x=self.class_labels, y=total_errors, orientation='v', width=1200, height=800)
+        fig = px.bar(x=self.class_labels, y=total_errors, orientation='v', width=900, height=500)
         fig.update_layout(
             title_text='Total miss-classifications per class',
             xaxis_title_text='Class name',
@@ -124,7 +124,7 @@ class Evaluator:
         cm = metrics.confusion_matrix(true_labels, pred_labels)
         correct_percentage = cm.diagonal() / cm.sum(axis=1)
         rel_errors = 1 - correct_percentage
-        fig = px.bar(x=class_labels, y=rel_errors, orientation='v', width=1200, height=800)
+        fig = px.bar(x=class_labels, y=rel_errors, orientation='v', width=900, height=500)
         fig.update_layout(
             title_text='Percentage of miss-classifications per class',
             xaxis_title_text='Class name',
