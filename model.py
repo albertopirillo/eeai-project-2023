@@ -48,14 +48,14 @@ class Model:
         ])
 
 
-    def create_callbacks(self, log_dir: Path, verbose: int = 1) -> list[keras.callbacks]:
+    def create_callbacks(self, log_dir: Path, verbose: int = 1, stop_at_99: bool = False) -> list[keras.callbacks]:
         # Custom callback to stop training at 99% accuracy
         def check_accuracy(_, logs):
             if logs.get('accuracy') >= 0.99 and logs.get('val_accuracy') >= 0.99:
                 print('\nEarly stopping at 99% accuracy.')
                 self.model.stop_training = True
 
-        return [
+        callbacks = [
             keras.callbacks.EarlyStopping(
                 monitor="val_loss",
                 min_delta=0.01,
@@ -72,10 +72,12 @@ class Model:
             #     verbose=verbose
             # ),
             keras.callbacks.TerminateOnNaN(),
-            keras.callbacks.LambdaCallback(on_epoch_end=check_accuracy),
             # Enable TensorBoard to monitor training
             keras.callbacks.TensorBoard(log_dir=log_dir / datetime.now().strftime("%d-%m-%H-%M"), histogram_freq=1)
         ]
+
+        if stop_at_99: callbacks.append(keras.callbacks.LambdaCallback(on_epoch_end=check_accuracy))
+        return callbacks
 
 
     def summary(self, model: Literal['base', 'full']) -> None:
@@ -85,7 +87,7 @@ class Model:
 
 
     def plot_model(self, dpi: int = 300) -> Any:
-        return keras.utils.plot_model(self.model, to_file='model.png', show_shapes=True, show_layer_names=True, dpi=dpi)
+        return keras.utils.plot_model(self.model, to_file='model.png', show_shapes=True, show_layer_names=False, dpi=dpi)
 
 
     def compile(self, learning_rate: float) -> None:
@@ -109,7 +111,7 @@ class Model:
                                                   callbacks=self.create_callbacks(log_dir / 'fine-tuning'))
 
 
-    def plot_history(self, phase: Literal['fit', 'fine_tuning']) -> None:
+    def plot_history(self, phase: Literal['fit', 'fine_tuning'], log_scale: bool = False) -> None:
         if phase == 'fit': history = self.fit_history
         elif phase == 'fine_tuning': history = self.fine_tuning_history
         else: return
@@ -124,8 +126,13 @@ class Model:
         plt.title('Training and Validation Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Cross Entropy')
-        plt.semilogy(loss, label='Training Loss')
-        plt.semilogy(val_loss, label='Validation Loss')
+        if log_scale:
+            plt.semilogy(loss, label='Training Loss')
+            plt.semilogy(val_loss, label='Validation Loss')
+        else:
+            plt.plot(loss, label='Training Loss')
+            plt.plot(val_loss, label='Validation Loss')
+        plt.grid(True)
         plt.legend()
 
         plt.subplot(1, 2, 2)
@@ -134,7 +141,7 @@ class Model:
         plt.ylabel('Accuracy')
         plt.plot(acc, label='Training Accuracy')
         plt.plot(val_acc, label='Validation Accuracy')
-        plt.ylim([min(plt.ylim()), 1])
+        plt.grid(True)
         plt.legend()
 
         plt.show()
