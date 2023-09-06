@@ -209,28 +209,35 @@ class Dataset:
         print('Saving complete.')
 
 
-    def use_augmentation(self) -> None:
+    def augment_and_rescale(self) -> None:
         def augment_image(image, label):
-            # Flip the image randomly
-            image = tf.image.random_flip_left_right(image)
-
             # Increase the image size, then randomly crop it down to the original dimensions
             resize_factor = random.uniform(1, 1.2)
             new_height = math.floor(resize_factor * IMAGE_SHAPE[0])
             new_width = math.floor(resize_factor * IMAGE_SHAPE[1])
-            image = tf.image.resize_with_crop_or_pad(image, new_height, new_width)
+            image = tf.image.resize_with_pad(image, new_height, new_width)
             image = tf.image.random_crop(image, size=(IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3))
 
-            # Var the brightness of the image
+            # Vary the brightness of the image
             image = tf.image.random_brightness(image, max_delta=0.2)
+            image = tf.clip_by_value(image, 0.0, 1.0)
 
             # Vary the contrast of the image
-            # image = tf.image.random_contrast(image, lower=0.3, upper=0.7)
+            image = tf.image.random_contrast(image, lower=0.9, upper=1.1)
+            image = tf.clip_by_value(image, 0.0, 1.0)
 
             # Vary the saturation of the image
-            # image = tf.image.random_saturation(image, lower=0.3, upper=0.7)
+            image = tf.image.random_saturation(image, lower=0.4, upper=0.6)
+
+            # Vary the hue of the image
+            image = tf.image.random_hue(image, max_delta=0.25)
 
             return image, label
 
+        # To apply augmentation, rescale pixels in the range [0, 1]
+        self.train = self.train.map(lambda x, y: (keras.layers.Rescaling(1. / 255)(x), y))
         # Augmentation is applied to the training dataset only
         self.train = self.train.unbatch().map(augment_image, num_parallel_calls=AUTOTUNE).batch(self.batch_size)
+        # Rescale pixels in the range [-1, 1], which is required by the model
+        self.train = self.train.map(lambda x, y: (keras.layers.Rescaling(2, offset=-1)(x), y))
+        self.validation = self.validation.map(lambda x, y: (keras.layers.Rescaling(1./127.5, offset=-1)(x), y))

@@ -8,19 +8,17 @@ from tensorflow import keras
 WEIGHTS_PATH: Path = Path('weights/MobileNetV1.0_25.128x128.color.h5')
 IMAGE_SHAPE: tuple[int, int, int] = (96, 96, 3)
 WIDTH_MULTIPLIER: float = 0.25
-FE_DROPOUT_RATE: float = 1e-2
-DENSE_DROPOUT_RATE: float = 0.3
 
 
 class Model:
-    def __init__(self, num_classes: int) -> None:
+    def __init__(self, num_classes: int, fe_dropout_rate: float = 1e-3, dense_dropout_rate: float = 0.1) -> None:
         self.num_classes = num_classes
         self.fit_history = None
         self.fine_tuning_history = None
         self.base_model = keras.applications.MobileNet(
             include_top=True,
             weights = WEIGHTS_PATH,
-            dropout=FE_DROPOUT_RATE,
+            dropout=fe_dropout_rate,
             alpha=WIDTH_MULTIPLIER,
             input_shape=IMAGE_SHAPE
         )
@@ -38,7 +36,7 @@ class Model:
             # Reshape the output of the base model
             keras.layers.Reshape((-1, self.base_model.layers[-1].output.shape[3])),
             # Dropout to prevent overfitting
-            keras.layers.Dropout(DENSE_DROPOUT_RATE),
+            keras.layers.Dropout(dense_dropout_rate),
             # Flatten the output tensors into a single vector
             keras.layers.Flatten(),
             # Fully-connected classifier
@@ -48,7 +46,9 @@ class Model:
         ])
 
 
-    def create_callbacks(self, log_dir: Path, verbose: int = 1, stop_at_99: bool = False) -> list[keras.callbacks]:
+    def create_callbacks(self, log_dir: Path, verbose: int = 1, stop_at_99: bool = False, log_time: bool = False) -> list[keras.callbacks]:
+        log_dir = (log_dir / datetime.now().strftime("%d-%m-%H-%M")) if log_time else log_dir
+
         # Custom callback to stop training at 99% accuracy
         def check_accuracy(_, logs):
             if logs.get('accuracy') >= 0.99 and logs.get('val_accuracy') >= 0.99:
@@ -73,7 +73,7 @@ class Model:
             # ),
             keras.callbacks.TerminateOnNaN(),
             # Enable TensorBoard to monitor training
-            keras.callbacks.TensorBoard(log_dir=log_dir / datetime.now().strftime("%d-%m-%H-%M"), histogram_freq=1)
+            keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
         ]
 
         if stop_at_99: callbacks.append(keras.callbacks.LambdaCallback(on_epoch_end=check_accuracy))
@@ -97,7 +97,7 @@ class Model:
 
 
     def fit(self, train_ds: tf.data.Dataset, validation_ds: tf.data.Dataset, epochs: int, log_dir: Path) -> None:
-        self.fit_history = self.model.fit(train_ds, validation_data=validation_ds, epochs=epochs, callbacks=self.create_callbacks(log_dir / 'fit'))
+        self.fit_history = self.model.fit(train_ds, validation_data=validation_ds, epochs=epochs, callbacks=self.create_callbacks(log_dir))
 
 
     def fine_tune(self, train_ds: tf.data.Dataset, validation_ds: tf.data.Dataset, epochs: int, learning_rate: float, log_dir: Path) -> None:
@@ -108,7 +108,7 @@ class Model:
                            loss=keras.losses.SparseCategoricalCrossentropy(),
                            metrics=['accuracy'])
         self.fine_tuning_history = self.model.fit(train_ds, validation_data=validation_ds, epochs=epochs,
-                                                  callbacks=self.create_callbacks(log_dir / 'fine-tuning'))
+                                                  callbacks=self.create_callbacks(log_dir))
 
 
     def plot_history(self, phase: Literal['fit', 'fine_tuning'], log_scale: bool = False) -> None:
